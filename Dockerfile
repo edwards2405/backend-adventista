@@ -20,8 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar el resto del código
 COPY . /app/
 
-# Recopilar archivos estáticos
-RUN python manage.py collectstatic --noinput
+# Recopilar archivos estáticos (con variables dummy para el build)
+RUN DATABASE_URL=sqlite:///db.sqlite3 SECRET_KEY=dummy python manage.py collectstatic --noinput
 
 # Exponer el puerto
 EXPOSE 8000
