@@ -1,0 +1,29 @@
+services:
+  # Base de datos PostgreSQL
+  - type: pgo
+    name: hav-db
+    plan: free # Cambiar a un plan de pago si es necesario en el futuro
+    databaseName: havdb
+    user: havuser
+
+  # Backend de Django
+  - type: web
+    name: hav-backend
+    env: docker
+    plan: free # Cambiar a un plan de pago si es necesario en el futuro
+    region: ohio
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hav-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*" # Puede cambiarse a la URL final de Render más adelante
+      - key: CORS_ALLOW_ALL_ORIGINS
+        value: "False"
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://hav-barquisimeto.netlify.app"
