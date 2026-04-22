@@ -5,7 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter, OpenApiTypes
-from .models import User
+from .models import User, Role
 from .serializers import UserSerializer, LoginRequestSerializer, LoginResponseSerializer
 
 class LoginView(APIView):
@@ -34,6 +34,13 @@ class LoginView(APIView):
             user = None
 
         if user is not None:
+            # Bug 3 fix: Verificar si el usuario está activo antes de emitir token
+            if not user.is_active:
+                return Response({
+                    "success": False,
+                    "message": "Su cuenta está desactivada. Contacte al administrador."
+                }, status=status.HTTP_403_FORBIDDEN)
+
             # Generamos el token JWT manualmente para controlar exactamente el formato de respuesta
             refresh = RefreshToken.for_user(user)
             user_data = UserSerializer(user).data
@@ -88,10 +95,10 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from django.db.models import Q
 from .permissions import IsAdmin
-from .serializers import StaffSerializer, StaffStatusUpdateSerializer
+from .serializers import StaffSerializer, StaffStatusUpdateSerializer, StaffCreateSerializer
 
 class StaffViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all().order_by('-date_joined')
+    queryset = User.objects.filter(is_deleted=False).order_by('-date_joined')
     serializer_class = StaffSerializer
     permission_classes = [IsAuthenticated, IsAdmin]
 
@@ -144,16 +151,67 @@ class StaffViewSet(viewsets.ModelViewSet):
             "data": serializer.data
         })
 
-    @extend_schema(tags=['Personal'], summary="Crear Personal", description="Registra un nuevo miembro del personal (Solo Superadmin)")
+    @extend_schema(tags=['Personal'], summary="Crear Personal", description="Registra un nuevo miembro del personal (Solo Superadmin)", request=StaffCreateSerializer)
     def create(self, request, *args, **kwargs):
-        # En una app real, aquí se crearía el User, el Role, y el perfil (Specialist, Cashier, etc.)
-        # Por ahora se expone el cascarón según endpoints_backend.md
-        return Response({"success": False, "message": "Endpoint no implementado completamente, requiere perfiles adicionales"}, status=status.HTTP_501_NOT_IMPLEMENTED)
+        serializer = StaffCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({"success": False, "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        name_parts = data['name'].split(' ', 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ''
+
+        # Verificar que el email no esté en uso
+        if User.objects.filter(email=data['email']).exists():
+            return Response({"success": False, "message": "Ya existe un usuario con ese correo electrónico"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Obtener o crear el rol
+        role_obj, _ = Role.objects.get_or_create(nombre_rol=data['role'])
+
+        # Crear el usuario
+        user = User.objects.create_user(
+            username=data['email'].split('@')[0],  # username basado en email
+            email=data['email'],
+            password=data.get('password', 'admin123'),
+            first_name=first_name,
+            last_name=last_name,
+            role=role_obj,
+            is_active=True,
+        )
+
+        response_serializer = StaffSerializer(user)
+        return Response({"success": True, "data": response_serializer.data}, status=status.HTTP_201_CREATED)
 
     @extend_schema(tags=['Personal'], summary="Actualizar Personal")
     def update(self, request, *args, **kwargs):
-        # Igual que create
-        return Response({"success": False, "message": "Endpoint no implementado completamente"}, status=status.HTTP_501_NOT_IMPLEMENTED)
+        return self.partial_update(request, *args, **kwargs)
+
+    @extend_schema(tags=['Personal'], summary="Actualizar Personal (parcial)")
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        # Actualizar rol si viene en el request
+        new_role = request.data.get('role')
+        if new_role:
+            role_obj, _ = Role.objects.get_or_create(nombre_rol=new_role)
+            instance.role = role_obj
+
+        # Actualizar nombre si viene
+        new_name = request.data.get('name')
+        if new_name:
+            name_parts = new_name.split(' ', 1)
+            instance.first_name = name_parts[0]
+            instance.last_name = name_parts[1] if len(name_parts) > 1 else ''
+
+        # Actualizar email si viene
+        new_email = request.data.get('email')
+        if new_email:
+            instance.email = new_email
+
+        instance.save()
+        response_serializer = StaffSerializer(instance)
+        return Response({"success": True, "data": response_serializer.data})
 
     @extend_schema(
         tags=['Personal'],
@@ -179,10 +237,13 @@ class StaffViewSet(viewsets.ModelViewSet):
             
         return Response({"success": False, "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
-    @extend_schema(tags=['Personal'], summary="Eliminar Personal")
+    @extend_schema(tags=['Personal'], summary="Eliminar Personal (soft delete)")
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        instance.delete()
+        # Soft delete: marcamos como eliminado pero no borramos de la BD
+        instance.is_deleted = True
+        instance.is_active = False
+        instance.save()
         return Response({
             "success": True,
             "message": "Miembro del personal eliminado"

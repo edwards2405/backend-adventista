@@ -82,3 +82,9 @@ class StaffSerializer(serializers.ModelSerializer):
 
 class StaffStatusUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=['activo', 'inactivo'])
+
+class StaffCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    role = serializers.ChoiceField(choices=['superadmin', 'recepcion', 'medico'])
+    password = serializers.CharField(max_length=128, required=False, default='admin123')

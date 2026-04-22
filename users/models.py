@@ -16,6 +16,7 @@ class Role(models.Model):
 class User(AbstractUser):
     # AbstractUser ya incluye username, password, email, is_active (estado_activo), etc.
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
+    is_deleted = models.BooleanField(default=False)  # Soft delete: True = oculto de la lista
     
     def __str__(self):
         return f"{self.username} ({self.role.nombre_rol if self.role else 'Sin rol'})"
