@@ -1,11 +1,11 @@
-services:
+databases:
   # Base de datos PostgreSQL
-  - type: pgo
-    name: hav-db
+  - name: hav-db
     plan: free # Cambiar a un plan de pago si es necesario en el futuro
     databaseName: havdb
     user: havuser
 
+services:
   # Backend de Django
   - type: web
     name: hav-backend
