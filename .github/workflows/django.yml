@@ -34,4 +34,4 @@ jobs:
         ALLOWED_HOSTS: "*"
         DATABASE_URL: sqlite:///db.sqlite3
       run: |
-        pytest
+        python manage.py check
