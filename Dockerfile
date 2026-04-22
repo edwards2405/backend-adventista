@@ -23,8 +23,11 @@ COPY . /app/
 # Recopilar archivos estáticos (con variables dummy para el build)
 RUN DATABASE_URL=sqlite:///db.sqlite3 SECRET_KEY=dummy python manage.py collectstatic --noinput
 
+# Dar permisos de ejecución al script de inicio
+RUN chmod +x start.sh
+
 # Exponer el puerto
 EXPOSE 8000
 
-# Comando para producción con Gunicorn
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+# Usar el script de inicio
+CMD ["./start.sh"]
