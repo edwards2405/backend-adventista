@@ -11,10 +11,32 @@ def setup():
     r_med, _ = Role.objects.get_or_create(nombre_rol='medico', descripcion='Médico Especialista')
     r_rec, _ = Role.objects.get_or_create(nombre_rol='recepcion', descripcion='Personal de Recepción')
     
-    # Admin
+    # Admin original (opcional, lo mantenemos por compatibilidad)
     if not User.objects.filter(email='admin@hav.edu.ve').exists():
-        admin = User.objects.create_superuser(username='admin', email='admin@hav.edu.ve', password='admin123', role=r_super)
+        User.objects.create_superuser(username='admin', email='admin@hav.edu.ve', password='admin123', role=r_super)
         print("Creado admin@hav.edu.ve")
+    
+    # NUEVO: Superusuario técnico solicitado para el panel administrativo
+    email_admin = 'admin@adventista.com'
+    user_admin, created = User.objects.get_or_create(
+        email=email_admin,
+        defaults={
+            'username': 'admin_adv',
+            'is_superuser': True,
+            'is_staff': True,
+            'role': r_super
+        }
+    )
+    user_admin.set_password('Admin123')
+    user_admin.is_superuser = True
+    user_admin.is_staff = True
+    user_admin.role = r_super
+    user_admin.save()
+    
+    if created:
+        print(f"Creado superusuario técnico: {email_admin}")
+    else:
+        print(f"Credenciales actualizadas para: {email_admin}")
     
     # Médico
     if not User.objects.filter(email='medico@hav.edu.ve').exists():
